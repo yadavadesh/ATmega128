@@ -1,0 +1,33 @@
+#define F_CPU 16000000
+
+#include <avr/io.h>
+#include <util/delay.h>
+
+void ADC_Init(void)
+ {
+    /*enabling adc and setting prescaler to 16*/
+    ADCSRA |= (1<<ADEN)|(1<<ADPS2)|(1<<ADFR);
+    /*selecting ADC0 channel, left adjusting result*/
+    ADMUX |= (1<<ADLAR);
+ }
+
+int main(void)
+ {
+    ADC_Init();
+    DDRD = 0xFF;
+    DDRE = 0xFF;
+    /*starting conversion*/
+    ADCSRA |= (1<<ADSC);
+    while(1)
+     {
+        /*wait for conversion to complete*/
+	while(!(ADCSRA & (1<<ADIF)));
+	PORTD = ADCL;
+	PORTE = ADCH;
+	_delay_ms(100);
+	PORTD = 0x00;
+	PORTE = 0x00;
+	_delay_ms(100);
+     }
+ }
+

@@ -1,0 +1,41 @@
+#define F_CPU 16000000
+
+#include<avr/io.h>
+#include<util/delay.h>
+
+void USART_Init(void)
+ {
+    /*Setting baud rate*/
+    UBRR0H = 0x00;
+    UBRR0L = 0x33;
+    /*Enabling receiver and transmitter*/
+    UCSR0C = 0x06;
+    /*Setting frame format*/
+    UCSR0B = 0x18;
+ }
+
+void USART_Trans(char data)
+ {  
+    /*Wait for empty transmit buffer*/
+    while(!(UCSR0A & 0x20));
+    /*Put data into buffer*/
+    UDR0 = data;
+ }
+
+char USART_Rec(void)
+ {
+    /*Wait for data to be received*/
+    while(!(UCSR0A & 0x80));
+    /*Get and return received data from buffer*/
+    return UDR0;
+ }
+
+int main(void)
+ {
+    USART_Init();
+    while(1)
+     {
+        USART_Trans(USART_Rec());
+     }
+    return 0;
+ }   

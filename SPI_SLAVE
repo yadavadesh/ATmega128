@@ -1,0 +1,37 @@
+#define F_CPU 16000000
+
+#include<avr/io.h>
+#include<util/delay.h>
+
+void SPI_SLAVE_Init(void)
+ {
+    /*Set MISO as output*/
+    DDRB = 0x08;
+    /*Enable SPI*/
+    SPCR = 0x40;
+ }
+
+uint8_t SPI_SLAVE_Rec(void)
+ {
+    /*Wait for reception to complete*/
+    while(!(SPSR & 0x80));
+    /*Return data*/
+    return SPDR;
+ }
+
+void SPI_SLAVE_Trans(uint8_t data)
+ {
+    /*Start transmission*/
+    SPDR = data;
+    /*Wait for transmission to complete*/
+    while(!(SPSR & 0x80)); 
+ }
+
+int main(void)
+ {
+    SPI_SLAVE_Init();
+    DDRF = 0xFF;
+    uint8_t a = SPI_SLAVE_Rec();
+    PORTF = a;
+    return 0;
+ }

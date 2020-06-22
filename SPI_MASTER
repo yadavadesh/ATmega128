@@ -1,0 +1,38 @@
+#define F_CPU 16000000
+
+#include<avr/io.h>
+#include<util/delay.h>
+
+void SPI_MASTER_Init(void)
+ {
+    /*Set MOSI, SCK and SS as output*/
+    DDRB = 0x07;
+    PORTB |= (1<<PB0);
+    /*Enable SPI, master, clk rate fck/16*/
+    SPCR = 0x51;
+ }
+
+void SPI_MASTER_Trans(uint8_t data)
+ {
+    /*Start transmission*/
+    SPDR = data;
+    /*Wait for transmission to complete*/
+    while(!(SPSR & 0x80));
+ }
+
+uint8_t SPI_MASTER_Rec(void)
+ {
+    /*Wait for reception to complete*/
+    while(!(SPSR & 0x80));
+    /*Return data*/ 
+    return SPDR;
+ }
+
+int main(void)
+ {
+    SPI_MASTER_Init();
+    PORTB &= ~(1<<PB0);
+    /*Transmitting random data for testing*/
+    SPI_MASTER_Trans(0b00110011);
+    return 0;
+ }

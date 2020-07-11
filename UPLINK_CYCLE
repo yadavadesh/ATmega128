@@ -1,0 +1,218 @@
+/*Code for ELEC uC*/
+
+#define F_CPU 16000000
+
+#include<avr/io.h>
+#include<util/delay.h>
+
+void USART_Init(void)
+{
+	/*Setting baud rate*/
+	UBRR0H = 0x00;
+	UBRR0L = 0x33;
+	/*Enabling receiver and transmitter*/
+	UCSR0C = 0x06;
+	/*Setting frame format*/
+	UCSR0B = 0x18;
+}
+
+void USART_Trans(uint8_t data)
+{
+	/*Wait for empty transmit buffer*/
+	while(!(UCSR0A & 0x20));
+	/*Put data into buffer*/
+	UDR0 = data;
+}
+
+int main()
+{
+	USART_Init();
+  /*Initializing variables with random values*/
+	uint8_t deployment_status=2;
+	uint8_t voltage_status=3;
+	uint8_t current_status=6;
+	uint8_t comm_data1=13,comm_data2=14;
+	uint8_t operational_mode=1;
+	uint8_t adc0=4,adc1=5,adc2=7,adc3=8,adc4=9,adc5=10,adc6=11,adc7=12;
+	
+	/*Transmitting HM data to COMM uC*/ 
+  USART_Trans(operational_mode);
+	USART_Trans(deployment_status);
+	USART_Trans(voltage_status);
+	USART_Trans(adc0);
+	USART_Trans(adc1);
+	USART_Trans(current_status);
+	USART_Trans(adc2);
+	USART_Trans(adc3);
+	USART_Trans(adc4);
+	USART_Trans(adc5);
+	USART_Trans(adc6);
+	USART_Trans(adc7);
+	USART_Trans(comm_data1);
+	USART_Trans(comm_data2);
+	return 0;
+}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+/*Code for CC1125*/
+
+#define F_CPU 16000000
+
+#include<avr/io.h>
+#include<util/delay.h>
+
+void SPI_SLAVE_Init(void)
+{
+	/*Set MISO as output*/
+	DDRB = 0x08;
+	/*Enable SPI*/
+	SPCR = 0x40;
+}
+
+void SPI_SLAVE_Trans(char data)
+{
+	/*Start transmission*/
+	SPDR = data;
+	/*Wait for transmission to complete*/
+	while(!(SPSR & 0x80));
+}
+
+int main(void)
+{
+	SPI_SLAVE_Init();
+  /*Random data for testing*/
+	char data[11]="UPLINK_DATA";
+	int i=0;
+
+  /*Transmitting data to COMM uC*/
+	while(i<11)
+	{
+		SPI_SLAVE_Trans(data[i]);
+		i++;
+	}
+	return 0;
+}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+/*Code for COMM uC*/
+
+#define F_CPU 16000000
+
+#include<avr/io.h>
+#include<util/delay.h>
+
+void USART_Init(void)
+{
+	/*Setting baud rate*/
+	UBRR0H = 0x00;
+	UBRR0L = 0x33;
+	/*Enabling receiver and transmitter*/
+	UCSR0C = 0x06;
+	/*Setting frame format*/
+	UCSR0B = 0x18;
+}
+
+uint8_t USART_Rec(void)
+{
+	/*Wait for data to be received*/
+	while(!(UCSR0A & 0x80));
+	/*Get and return received data from buffer*/
+	return UDR0;
+}
+
+void SPI_MASTER_Init(void)
+{
+	/*Set MOSI, SCK and SS as output*/
+	DDRB = 0x07;
+	PORTB |= (1<<PB0);
+	/*Enable SPI, master, clk rate fck/16*/
+	SPCR = 0x51;
+}
+
+char SPI_MASTER_Rec(void)
+{
+	/*Wait for reception to complete*/
+	while(!(SPSR & 0x80));
+	/*Return data*/
+	return SPDR;
+}
+
+int main()
+{
+	USART_Init();
+	SPI_MASTER_Init();
+	PORTB &= ~(1<<PB0);
+	DDRA=0xFF;
+	DDRF=0xFF;
+	uint8_t deployment_status;
+	uint8_t voltage_status;
+	uint8_t current_status;
+	uint8_t comm_data1,comm_data2;
+	uint8_t operational_mode;
+	uint8_t adc0,adc1,adc2,adc3,adc4,adc5,adc6,adc7;
+	char data[11];
+	int i=0;
+	
+	/*Receiving HM data from ELEC uC*/
+	operational_mode=USART_Rec();
+	deployment_status=USART_Rec();
+	voltage_status=USART_Rec();
+	adc0=USART_Rec();
+	adc1=USART_Rec();
+	current_status=USART_Rec();
+	adc2=USART_Rec();
+	adc3=USART_Rec();
+	adc4=USART_Rec();
+	adc5=USART_Rec();
+	adc6=USART_Rec();
+	adc7=USART_Rec();
+	comm_data1=USART_Rec();
+	comm_data2=USART_Rec();
+	
+	/*Receiving uplinked data from CC1125*/
+	while(i<11)
+	{
+		data[i]=SPI_MASTER_Rec();
+		i++;
+	}
+	
+	/*This part is for simulation purpose*/
+	PORTA=operational_mode;
+	_delay_ms(100);
+	PORTA=deployment_status;
+	_delay_ms(100);
+	PORTA=voltage_status;
+	_delay_ms(100);
+	PORTA=adc0;
+	_delay_ms(100);
+	PORTA=adc1;
+	_delay_ms(100);
+	PORTA=current_status;
+	_delay_ms(100);
+	PORTA=adc2;
+	_delay_ms(100);
+	PORTA=adc3;
+	_delay_ms(100);
+	PORTA=adc4;
+	_delay_ms(100);
+	PORTA=adc5;
+	_delay_ms(100);
+	PORTA=adc6;
+	_delay_ms(100);
+	PORTA=adc7;
+	_delay_ms(100);
+	PORTA=comm_data1;
+	_delay_ms(100);
+	PORTA=comm_data2;
+	_delay_ms(100);
+   	i=0;
+	while(i<11)
+	{
+		PORTF=data[i];
+		i++;
+		_delay_ms(100);
+	}
+	return 0;
+}

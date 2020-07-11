@@ -1,0 +1,238 @@
+/*Code for ELEC uC*/
+
+#define F_CPU 16000000
+
+#include<avr/io.h>
+#include<util/delay.h>
+
+void USART_Init(void)
+{
+	/*Setting baud rate*/
+	UBRR0H = 0x00;
+	UBRR0L = 0x33;
+	/*Enabling receiver and transmitter*/
+	UCSR0C = 0x06;
+	/*Setting frame format*/
+	UCSR0B = 0x18;
+}
+
+
+char USART_Rec(void)
+{
+	/*Wait for data to be received*/
+	while(!(UCSR0A & 0x80));
+	/*Get and return received data from buffer*/
+	return UDR0;
+}
+
+int main()
+{
+	USART_Init();
+	int i=0;
+	DDRA = 0xFF;
+  
+  /*Receiving uplinked data from COMM uC*/
+	while(i<11)
+	{
+		PORTA=USART_Rec();
+		_delay_ms(100);
+		i++;
+	}
+  
+  /*Receiving HM data of COMM PCB from COMM uC*/
+	PORTA=USART_Rec();
+	_delay_ms(100);
+	PORTA=USART_Rec();
+	_delay_ms(100);
+	PORTA=USART_Rec();
+	_delay_ms(100);
+	return 0;
+}
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+/*Code for CC1125*/
+
+#define F_CPU 16000000
+
+#include<avr/io.h>
+#include<util/delay.h>
+
+void SPI_SLAVE_Init(void)
+{
+	/*Set MISO as output*/
+	DDRB = 0x08;
+	/*Enable SPI*/
+	SPCR = 0x40;
+}
+
+uint8_t SPI_SLAVE_Rec(void)
+{
+	/*Wait for reception to complete*/
+	while(!(SPSR & 0x80));
+	/*Return data*/
+	return SPDR;
+}
+
+int main()
+{
+	SPI_SLAVE_Init();
+	DDRF=0xFF;
+	int i=0;
+  
+  /*Receiving HM data for beacon from COMM uC*/
+	while(i<18)
+	{
+		PORTF=SPI_SLAVE_Rec();
+		_delay_ms(100);
+		i++;
+	}
+	return 0;
+}
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+/*Code for COMM uC*/
+
+#define F_CPU 16000000
+
+#include<avr/io.h>
+#include<util/delay.h>
+
+void USART_Init(void)
+{
+	/*Setting baud rate*/
+	UBRR0H = 0x00;
+	UBRR0L = 0x33;
+	/*Enabling receiver and transmitter*/
+	UCSR0C = 0x06;
+	/*Setting frame format*/
+	UCSR0B = 0x18;
+}
+
+void USART_Trans(char data)
+{
+	/*Wait for empty transmit buffer*/
+	while(!(UCSR0A & 0x20));
+	/*Put data into buffer*/
+	UDR0 = data;
+}
+
+void SPI_MASTER_Init(void)
+{
+	/*Set MOSI, SCK and SS as output*/
+	DDRB = 0x07;
+	PORTB |= (1<<PB0);
+	/*Enable SPI, master, clk rate fck/16*/
+	SPCR = 0x51;
+}
+
+void SPI_MASTER_Trans(uint8_t data)
+{
+	/*Start transmission*/
+	SPDR = data;
+	/*Wait for transmission to complete*/
+	while(!(SPSR & 0x80));
+}
+
+void ADC_Init(void)
+{
+	/*enabling adc and setting prescaler to 16*/
+	ADCSRA |= (1<<ADEN)|(1<<ADPS2);
+}
+
+char ADC_convert(uint8_t mux)
+{
+	ADMUX = (1<<ADLAR);
+	ADMUX |= mux;
+	ADCSRA |= (1<<ADSC);
+	while(!(ADCSRA & (1<<ADIF)));
+	return ADCH;
+}
+
+int main()
+{
+	SPI_MASTER_Init();
+	USART_Init();
+	ADC_Init();
+  /*Initializing variables with random values*/
+	char data[11]="UPLINK_DATA";
+	int i=0;
+	uint8_t deployment_status=2;
+	uint8_t voltage_status=3;
+	uint8_t current_status=6;
+	uint8_t comm_data1=13,comm_data2=14;
+	uint8_t operational_mode=1;
+	uint8_t adc0=4,adc1=5,adc2=7,adc3=8,adc4=9,adc5=10,adc6=11,adc7=12;
+	char comm_hm0,comm_hm1,comm_hm2;
+	
+  /*Transmitting data to CC1125*/
+	PORTB &= ~(1<<PB0);
+	SPI_MASTER_Trans(operational_mode);
+	_delay_ms(100);
+	SPI_MASTER_Trans(deployment_status);
+	_delay_ms(100);
+	SPI_MASTER_Trans(voltage_status);
+	_delay_ms(100);
+	SPI_MASTER_Trans(adc0);
+	_delay_ms(100);
+	SPI_MASTER_Trans(adc1);
+	_delay_ms(100);
+	SPI_MASTER_Trans(current_status);
+	_delay_ms(100);
+	SPI_MASTER_Trans(adc2);
+	_delay_ms(100);
+	SPI_MASTER_Trans(adc3);
+	_delay_ms(100);
+	SPI_MASTER_Trans(adc4);
+	_delay_ms(100);
+	SPI_MASTER_Trans(adc5);
+	_delay_ms(100);
+	SPI_MASTER_Trans(adc6);
+	_delay_ms(100);
+	SPI_MASTER_Trans(adc7);
+	_delay_ms(100);
+	SPI_MASTER_Trans(comm_data1);
+	_delay_ms(100);
+	SPI_MASTER_Trans(comm_data2);
+	_delay_ms(100);
+	
+	/*Collecting HM data from COMM PCB*/
+  comm_hm0=ADC_convert(0x00);
+	comm_hm1=ADC_convert(0x01);
+	comm_hm2=ADC_convert(0x02);
+	
+  /*Transmitting uplinked data to ELEC uC*/
+	while(i<11)
+	{
+		USART_Trans(data[i]);
+		i++;
+		_delay_ms(100);
+	}
+	
+  /*Transmitting HM data of COMM PCB to ELEC uC*/
+	USART_Trans(comm_hm0);
+	_delay_ms(100);
+	USART_Trans(comm_hm1);
+	_delay_ms(100);
+	USART_Trans(comm_hm2);
+	_delay_ms(100);
+	
+	
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -74,23 +74,32 @@ void SPI_SLAVE_Trans(char data)
 {
 	/*Start transmission*/
 	SPDR = data;
-	/*Wait for transmission to complete*/
+}
+
+char SPI_SLAVE_Rec(void)
+{
+	/*Wait for reception to complete*/
 	while(!(SPSR & 0x80));
+	/*Return data*/
+	return SPDR;
 }
 
 int main(void)
 {
 	SPI_SLAVE_Init();
-  /*Random data for testing*/
+	/*Transmitting random data for testing*/
 	char data[11]="UPLINK_DATA";
+	/*Variable trash for storing unnecessary data*/
+	char trash;
 	int i=0;
-
-  /*Transmitting data to COMM uC*/
 	while(i<11)
 	{
+		trash=SPI_SLAVE_Rec();
 		SPI_SLAVE_Trans(data[i]);
 		i++;
 	}
+	trash=SPI_SLAVE_Rec();
+	SPI_SLAVE_Trans(0x00);
 	return 0;
 }
 
@@ -131,10 +140,16 @@ void SPI_MASTER_Init(void)
 	SPCR = 0x51;
 }
 
+void SPI_MASTER_Trans(char data)
+{
+	/*Start transmission*/
+	SPDR = data;
+	/*Wait for transmission to complete*/
+	while(!(SPSR & 0x80));
+}
+
 char SPI_MASTER_Rec(void)
 {
-	/*Wait for reception to complete*/
-	while(!(SPSR & 0x80));
 	/*Return data*/
 	return SPDR;
 }
@@ -152,10 +167,10 @@ int main()
 	uint8_t comm_data1,comm_data2;
 	uint8_t operational_mode;
 	uint8_t adc0,adc1,adc2,adc3,adc4,adc5,adc6,adc7;
-	char data[11];
+	char data[11],trash;
 	int i=0;
 	
-	/*Receiving HM data from ELEC uC*/
+	/*Receiving HM data from elec uC*/
 	operational_mode=USART_Rec();
 	deployment_status=USART_Rec();
 	voltage_status=USART_Rec();
@@ -172,8 +187,11 @@ int main()
 	comm_data2=USART_Rec();
 	
 	/*Receiving uplinked data from CC1125*/
+	SPI_MASTER_Trans(0x00);
+	trash=SPI_MASTER_Rec();
 	while(i<11)
 	{
+		SPI_MASTER_Trans(0x00);
 		data[i]=SPI_MASTER_Rec();
 		i++;
 	}
@@ -207,7 +225,7 @@ int main()
 	_delay_ms(100);
 	PORTA=comm_data2;
 	_delay_ms(100);
-   	i=0;
+	i=0;
 	while(i<11)
 	{
 		PORTF=data[i];

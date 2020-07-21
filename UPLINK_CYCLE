@@ -111,26 +111,18 @@ int main(void)
 
 #define F_CPU 16000000
 
-#include<avr/io.h>
-#include<util/delay.h>
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/interrupt.h>
 
-void USART_Init(void)
-{
-	/*Setting baud rate*/
+void USART0_INIT(void){
+	/*baud rate*/
 	UBRR0H = 0x00;
 	UBRR0L = 0x33;
-	/*Enabling receiver and transmitter*/
 	UCSR0C = 0x06;
-	/*Setting frame format*/
-	UCSR0B = 0x18;
-}
-
-uint8_t USART_Rec(void)
-{
-	/*Wait for data to be received*/
-	while(!(UCSR0A & 0x80));
-	/*Get and return received data from buffer*/
-	return UDR0;
+	/*enabling receiver and transmitter*/
+	UCSR0B = 0x98;
+	/*setting frame format*/
 }
 
 void SPI_MASTER_Init(void)
@@ -138,103 +130,123 @@ void SPI_MASTER_Init(void)
 	/*Set MOSI, SCK and SS as output*/
 	DDRB = 0x07;
 	PORTB |= (1<<PB0);
-	/*Enable SPI, master, clk rate fck/16*/
-	SPCR = 0x51;
+	/*Enable SPIE, SPI, master, clk rate fck/16*/
+	SPCR = 0xD1;
 }
 
-void SPI_MASTER_Trans(char data)
+uint8_t deployment_status;
+uint8_t voltage_status;
+uint8_t current_status;
+uint8_t comm_data1,comm_data2;
+uint8_t operational_mode;
+uint8_t adc0,adc1,adc2,adc3,adc4,adc5,adc6,adc7;
+int count=1,i=0;
+char data[17];
+
+ISR(USART0_RX_vect)
 {
-	/*Start transmission*/
-	SPDR = data;
-	/*Wait for transmission to complete*/
-	while(!(SPSR & 0x80));
+	switch(count)
+	{
+		case 1: operational_mode=UDR0;
+		count++;
+		break;
+		case 2: deployment_status=UDR0;
+		count++;
+		break;
+		case 3: voltage_status=UDR0;
+		count++;
+		break;
+		case 4: adc0=UDR0;
+		count++;
+		break;
+		case 5: adc1=UDR0;
+		count++;
+		break;
+		case 6: current_status=UDR0;
+		count++;
+		break;
+		case 7: adc2=UDR0;
+		count++;
+		break;
+		case 8: adc3=UDR0;
+		count++;
+		break;
+		case 9: adc4=UDR0;
+		count++;
+		break;
+		case 10:adc5=UDR0;
+		count++;
+		break;
+		case 11:adc6=UDR0;
+		count++;
+		break;
+		case 12:adc7=UDR0;
+		count++;
+		break;
+		case 13:comm_data1=UDR0;
+		count++;
+		break;
+		case 14:comm_data2=UDR0;
+		count=1;
+		break;
+		
+	}
 }
 
-char SPI_MASTER_Rec(void)
-{
-        /*Wait for reception to complete*/
-	while(!(SPSR & 0x80));
-	/*Return data*/
-	return SPDR;
+ISR(SPI_STC_vect)
+{	if(i<12)
+	{
+		data[i]=SPDR;
+		i++;
+		SPDR=0xFF;
+	}
 }
 
 int main()
 {
-	USART_Init();
+	sei();
+	USART0_INIT();
 	SPI_MASTER_Init();
 	PORTB &= ~(1<<PB0);
 	DDRA=0xFF;
 	DDRF=0xFF;
-	uint8_t deployment_status;
-	uint8_t voltage_status;
-	uint8_t current_status;
-	uint8_t comm_data1,comm_data2;
-	uint8_t operational_mode;
-	uint8_t adc0,adc1,adc2,adc3,adc4,adc5,adc6,adc7;
-	char data[11],trash;
-	int i=0;
-	
-	/*Receiving HM data from elec uC*/
-	operational_mode=USART_Rec();
-	deployment_status=USART_Rec();
-	voltage_status=USART_Rec();
-	adc0=USART_Rec();
-	adc1=USART_Rec();
-	current_status=USART_Rec();
-	adc2=USART_Rec();
-	adc3=USART_Rec();
-	adc4=USART_Rec();
-	adc5=USART_Rec();
-	adc6=USART_Rec();
-	adc7=USART_Rec();
-	comm_data1=USART_Rec();
-	comm_data2=USART_Rec();
-	
-	/*Receiving uplinked data from CC1125*/
-	SPI_MASTER_Trans(0x00);
-	trash=SPI_MASTER_Rec();
-	while(i<11)
+	SPDR=0xFF;
+	while(1)
 	{
-		SPI_MASTER_Trans(0x00);
-		data[i]=SPI_MASTER_Rec();
-		i++;
-	}
-	
-	/*This part is for simulation purpose*/
-	PORTA=operational_mode;
-	_delay_ms(100);
-	PORTA=deployment_status;
-	_delay_ms(100);
-	PORTA=voltage_status;
-	_delay_ms(100);
-	PORTA=adc0;
-	_delay_ms(100);
-	PORTA=adc1;
-	_delay_ms(100);
-	PORTA=current_status;
-	_delay_ms(100);
-	PORTA=adc2;
-	_delay_ms(100);
-	PORTA=adc3;
-	_delay_ms(100);
-	PORTA=adc4;
-	_delay_ms(100);
-	PORTA=adc5;
-	_delay_ms(100);
-	PORTA=adc6;
-	_delay_ms(100);
-	PORTA=adc7;
-	_delay_ms(100);
-	PORTA=comm_data1;
-	_delay_ms(100);
-	PORTA=comm_data2;
-	_delay_ms(100);
-	i=0;
-	while(i<11)
-	{
-		PORTF=data[i];
-		i++;
 		_delay_ms(100);
+		PORTA=operational_mode;
+		_delay_ms(100);
+		PORTA=deployment_status;
+		_delay_ms(100);
+		PORTA=voltage_status;
+		_delay_ms(100);
+		PORTA=adc0;
+		_delay_ms(100);
+		PORTA=adc1;
+		_delay_ms(100);
+		PORTA=current_status;
+		_delay_ms(100);
+		PORTA=adc2;
+		_delay_ms(100);
+		PORTA=adc3;
+		_delay_ms(100);
+		PORTA=adc4;
+		_delay_ms(100);
+		PORTA=adc5;
+		_delay_ms(100);
+		PORTA=adc6;
+		_delay_ms(100);
+		PORTA=adc7;
+		_delay_ms(100);
+		PORTA=comm_data1;
+		_delay_ms(100);
+		PORTA=comm_data2;
+		_delay_ms(100);
+		for(int j=1;j<12;j++)
+		{
+			PORTF=data[j];
+			_delay_ms(100);
+		}
 	}
 	return 0;
 }
